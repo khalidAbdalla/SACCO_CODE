@@ -1,230 +1,222 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <cstdlib>
+#include <ctime>
+#include <algorithm>
 
-// User Class - Handles user data only (SRP)
+using namespace std;
+
+string generatePassword() {
+    const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    string password;
+    srand(time(0));
+
+    for (int i = 0; i < 8; ++i) {
+        password += chars[rand() % chars.length()];
+    }
+    return password;
+}
+
 class User {
 private:
-    std::string firstName;
-    std::string lastName;
-    std::string phoneNumber;
-    std::string email;
-    std::string password;
+    string firstName;
+    string lastName;
+    string phoneNumber;
+    string email;
+    string password;
 
 public:
-    User(std::string firstName, std::string lastName, std::string phoneNumber, std::string email, std::string password)
+    User(string firstName, string lastName, string phoneNumber, string email, string password)
         : firstName(firstName), lastName(lastName), phoneNumber(phoneNumber), email(email), password(password) {}
 
-    std::string getFirstName() const { return firstName; }
-    std::string getLastName() const { return lastName; }
-    std::string getPhoneNumber() const { return phoneNumber; }
-    std::string getEmail() const { return email; }
-    std::string getPassword() const { return password; }
-    void setPassword(const std::string& newPassword) { password = newPassword; }
+    string getFirstName() const { return firstName; }
+    string getPhoneNumber() const { return phoneNumber; }
+    string getPassword() const { return password; }
+    void setPassword(const string& newPassword) { password = newPassword; }
 };
 
-// AuthManager Class - Handles user authentication (SRP)
-class AuthManager {
+class Account {
 private:
-    std::vector<User> users;
+    double balance = 0.0;
+    vector<string> transactions;
 
 public:
-    bool signUp(const std::string& firstName, const std::string& lastName, const std::string& phoneNumber,
-                const std::string& email, const std::string& password) {
+    void deposit(double amount) {
+        balance += amount;
+        transactions.push_back("Deposited: " + to_string(amount));
+    }
+
+    void withdraw(double amount) {
+        if (balance >= amount) {
+            balance -= amount;
+            transactions.push_back("Withdrew: " + to_string(amount));
+        } else {
+            throw runtime_error("Insufficient funds!");
+        }
+    }
+
+    void printStatement() const {
+        cout << "\n=== Account Statement ===\n";
+        cout << "Current Balance: " << balance << "\n\n";
+        cout << "Transaction History:\n";
+        for (const auto& t : transactions) {
+            cout << t << "\n";
+        }
+    }
+};
+
+class AuthManager {
+private:
+    vector<User> users;
+    User* currentUser = nullptr;
+    Account currentAccount;
+
+public:
+    bool signUp(const string& firstName, const string& lastName,
+                const string& phoneNumber, const string& email) {
         for (const auto& user : users) {
             if (user.getPhoneNumber() == phoneNumber) {
-                std::cout << "User already exists.\n";
                 return false;
             }
         }
-        users.push_back(User(firstName, lastName, phoneNumber, email, password));
+        string tempPassword = generatePassword();
+        users.emplace_back(firstName, lastName, phoneNumber, email, tempPassword);
+        cout << "\nYour temporary password is: " << tempPassword << endl;
+        cout << "Please change it after login for security.\n";
         return true;
     }
 
-    bool signIn(const std::string& phoneNumber, const std::string& password) {
+    bool signIn(const string& phoneNumber, const string& password) {
         for (auto& user : users) {
             if (user.getPhoneNumber() == phoneNumber && user.getPassword() == password) {
+                currentUser = &user;
+                cout << "\nWelcome Farmer " << user.getFirstName() << "!\n";
                 return true;
             }
         }
         return false;
     }
 
-    User* getUserByPhoneNumber(const std::string& phoneNumber) {
-        for (auto& user : users) {
-            if (user.getPhoneNumber() == phoneNumber) {
-                return &user;
-            }
-        }
-        return nullptr;
-    }
-};
+    bool isAuthenticated() const { return currentUser != nullptr; }
 
-// Transaction Class - Handles individual transaction details (SRP)
-class Transaction {
-private:
-    std::string type;  // Deposit or Withdraw
-    double amount;
-
-public:
-    Transaction(std::string type, double amount) : type(type), amount(amount) {}
-
-    std::string getType() const { return type; }
-    double getAmount() const { return amount; }
-};
-
-// Account Class - Manages balance and transactions (SRP)
-class Account {
-private:
-    double balance;
-    std::vector<Transaction> transactions;
-
-public:
-    Account() : balance(0.0) {}
-
-    void deposit(double amount) {
-        balance += amount;
-        transactions.push_back(Transaction("Deposit", amount));
-    }
-
-    void withdraw(double amount) {
-        if (balance >= amount) {
-            balance -= amount;
-            transactions.push_back(Transaction("Withdraw", amount));
-        } else {
-            std::cout << "Insufficient funds!\n";
+    void changePassword(const string& newPassword) {
+        if (currentUser) {
+            currentUser->setPassword(newPassword);
+            cout << "Password changed successfully!\n";
         }
     }
 
-    void viewStatements() {
-        for (const auto& transaction : transactions) {
-            std::cout << transaction.getType() << ": " << transaction.getAmount() << "\n";
+    Account& getAccount() { return currentAccount; }
+
+    void promptPasswordChange() {
+        if (currentUser) {
+            string newPassword;
+            cout << "\nFor security, please change your password:\n";
+            cout << "Enter new password: ";
+            cin >> newPassword;
+            changePassword(newPassword);
         }
-    }
-
-    double getBalance() const { return balance; }
-
-    void setPassword(const std::string& newPassword) {
-        std::cout << "Password reset successful.\n";
     }
 };
 
-// SACCOSystem Class - Orchestrates user interaction with the system (SRP)
 class SACCOSystem {
 private:
-    AuthManager authManager;
+    AuthManager auth;
+    int attemptsLeft = 2;
 
-public:
-    void signUp() {
-        std::string firstName, lastName, phoneNumber, email, password;
-        std::cout << "Enter first name: ";
-        std::cin >> firstName;
-        std::cout << "Enter last name: ";
-        std::cin >> lastName;
-        std::cout << "Enter phone number: ";
-        std::cin >> phoneNumber;
-        std::cout << "Enter email: ";
-        std::cin >> email;
-        std::cout << "Enter password: ";
-        std::cin >> password;
-
-        if (authManager.signUp(firstName, lastName, phoneNumber, email, password)) {
-            std::cout << "Sign-up successful! Please login.\n";
-        }
-    }
-
-    void signIn() {
-        std::string phoneNumber, password;
-        std::cout << "Enter phone number: ";
-        std::cin >> phoneNumber;
-        std::cout << "Enter password: ";
-        std::cin >> password;
-
-        if (authManager.signIn(phoneNumber, password)) {
-            std::cout << "Welcome, " << phoneNumber << "!\n";
-        } else {
-            std::cout << "Invalid login credentials.\n";
-        }
-    }
-
-    void deposit() {
-        double amount;
-        std::cout << "Enter deposit amount: ";
-        std::cin >> amount;
-        Account account; // This should be linked to a User, but for simplicity, we use a local object
-        account.deposit(amount);
-    }
-
-    void withdraw() {
-        double amount;
-        std::cout << "Enter withdraw amount: ";
-        std::cin >> amount;
-        Account account; // Same as deposit function, this should be tied to a User account
-        account.withdraw(amount);
-    }
-
-    void viewStatements() {
-        Account account; // Same issue as deposit, view statements should link to user account
-        account.viewStatements();
-    }
-
-    void resetPassword() {
-        std::string newPassword;
-        std::cout << "Enter new password: ";
-        std::cin >> newPassword;
-        Account account; // Again, link this to a real user account
-        account.setPassword(newPassword);
-    }
-
-    void handleUserLogin() {
-        int attempts = 0;
-        while (attempts < 2) {
+    bool authenticate() {
+        while (attemptsLeft > 0) {
+            cout << "\n1. Sign Up\n2. Sign In\nChoice: ";
             int choice;
-            std::cout << "1. Sign Up\n2. Sign In\n";
-            std::cout << "Enter your choice: ";
-            std::cin >> choice;
+            cin >> choice;
 
             if (choice == 1) {
-                signUp();
-                break;
-            } else if (choice == 2) {
-                signIn();
-                break;
-            } else {
-                std::cout << "Invalid choice. Try again.\n";
-                attempts++;
-            }
+                string fn, ln, phone, email;
+                cout << "First Name: "; cin >> fn;
+                cout << "Last Name: "; cin >> ln;
+                cout << "Phone: "; cin >> phone;
+                cout << "Email: "; cin >> email;
 
-            if (attempts == 2) {
-                std::cout << "Too many failed attempts. Exiting...\n";
-                exit(0); // Exit the program after two failed attempts
+                if (auth.signUp(fn, ln, phone, email)) {
+                    cout << "Sign up successful! Please sign in.\n";
+                } else {
+                    cout << "Phone number already exists!\n";
+                }
+            }
+            else if (choice == 2) {
+                string phone, pw;
+                cout << "Phone: "; cin >> phone;
+                cout << "Password: "; cin >> pw;
+
+                if (auth.signIn(phone, pw)) {
+                    auth.promptPasswordChange();
+                    return true;
+                } else {
+                    cout << "Invalid credentials. Attempts left: " << --attemptsLeft << "\n";
+                }
+            }
+            else {
+                cout << "Invalid choice. Attempts left: " << --attemptsLeft << "\n";
+            }
+        }
+        return false;
+    }
+
+public:
+    void run() {
+        cout << "=== Welcome to Farmers SACCO System ===\n";
+
+        if (!authenticate()) {
+            cout << "Too many failed attempts. Exiting...\n";
+            return;
+        }
+
+        while (true) {
+            cout << "\n1. Deposit\n2. Withdraw\n3. Statement\n4. Change Password\n5. Exit\nChoice: ";
+            int choice;
+            cin >> choice;
+
+            try {
+                switch (choice) {
+                    case 1: {
+                        double amount;
+                        cout << "Amount: "; cin >> amount;
+                        auth.getAccount().deposit(amount);
+                        cout << "Deposit successful!\n";
+                        break;
+                    }
+                    case 2: {
+                        double amount;
+                        cout << "Amount: "; cin >> amount;
+                        auth.getAccount().withdraw(amount);
+                        cout << "Withdrawal successful!\n";
+                        break;
+                    }
+                    case 3:
+                        auth.getAccount().printStatement();
+                        break;
+                    case 4: {
+                        string newPw;
+                        cout << "New Password: "; cin >> newPw;
+                        auth.changePassword(newPw);
+                        break;
+                    }
+                    case 5:
+                        cout << "Goodbye!\n";
+                        return;
+                    default:
+                        cout << "Invalid choice!\n";
+                }
+            } catch (const exception& e) {
+                cout << "Error: " << e.what() << "\n";
             }
         }
     }
 };
 
 int main() {
-    SACCOSystem saccoSystem;
-
-    // Handle user login or sign up first
-    saccoSystem.handleUserLogin();
-
-    // Now show the menu options after successful login
-    while (true) {
-        int choice;
-        std::cout << "1. Deposit\n2. Withdraw\n3. View Statements\n4. Reset Password\n5. Exit\n";
-        std::cout << "Enter your choice: ";
-        std::cin >> choice;
-
-        switch (choice) {
-            case 1: saccoSystem.deposit(); break;
-            case 2: saccoSystem.withdraw(); break;
-            case 3: saccoSystem.viewStatements(); break;
-            case 4: saccoSystem.resetPassword(); break;
-            case 5: std::cout << "Exiting system...\n"; return 0;
-            default: std::cout << "Invalid choice. Please try again.\n"; break;
-        }
-    }
-
+    SACCOSystem system;
+    system.run();
     return 0;
 }
